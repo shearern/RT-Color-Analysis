@@ -87,3 +87,8 @@ ENV/
 
 # Rope project settings
 .ropeproject
+src/rtcolor/ui/ColorPointDialog_UI.py
+src/rtcolor/ui/RTCA_MainWindow_UI.py
+src/rtcolor/ui/CropSetupDialog_UI.py
+src/rtcolor/ui/qt_assets_rc.py
+Microsoft.VC90.CRT/
