@@ -3,6 +3,8 @@ import sys
 from PySide.QtGui import QApplication, QIcon
 from PySide.QtCore import QCoreApplication
 
+from PIL import Image, ImageDraw
+
 from rtcolor import RTCA_MainWindow
 
 if __name__ == '__main__':
