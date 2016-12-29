@@ -112,7 +112,7 @@ class ScreenshotThread(QThread):
                 self.__cur_screen = next_screen
 
             # Queue Output
-            self.output_queue.put(next_screen)
+            self.output_queue.put((self.__cur_screen.size, next_screen.tobytes('raw', 'RGB')))
             self.new_screenshot.emit()
 
             # Wait at least the given number of seconds
