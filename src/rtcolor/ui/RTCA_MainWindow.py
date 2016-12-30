@@ -1,4 +1,5 @@
-from queue import Queue
+from Queue import Queue
+from PIL import Image
 
 from PySide.QtCore import *
 from PySide.QtGui import *
@@ -21,10 +22,7 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         self.screenshot_thread = ScreenshotThread(q)
         self.screenshot_thread.start()
 
-        self.histogram_thread = HistogramThread(
-            input_queue = q,
-            width = self.analysis_image_lbl.width(),
-            height = self.analysis_image_lbl.height())
+        self.histogram_thread = HistogramThread(input_queue = q)
         self.histogram_thread.start()
 
         # Connect signals/slots
@@ -46,7 +44,7 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         self.screenshot_time_lbl.setText('%0.1f sec' % (self.screenshot_thread.sec_taken))
 
         # Scale preview to thumbnail
-        thumb = self.screenshot_thread.last_screenshot.copy()
+        thumb = self.screenshot_thread.last_screenshot.pil
         size = self.last_screenshot_lbl.width(), self.last_screenshot_lbl.height()
         thumb.thumbnail(size)
 
@@ -68,7 +66,9 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         self.histogram_time_lbl.setText('%0.1f sec' % (self.histogram_thread.sec_taken))
 
         # Convert image to QPixmap
-        image = self.histogram_thread.histogram_image.copy()
+        image = self.histogram_thread.histogram.data_image.pil
+        size = (self.analysis_image_lbl.width(), self.analysis_image_lbl.height())
+        image = image.resize(size, Image.ANTIALIAS)
         image_data = image.convert("RGBA").tobytes('raw', 'RGBA')
         qtimage = QImage(
             image_data,

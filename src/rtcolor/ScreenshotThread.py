@@ -2,7 +2,37 @@ from threading import RLock
 import pyscreenshot as ImageGrab
 import time
 
+from .ThreadSafeImage import ThreadSafeImage
 from PySide.QtCore import QThread, QObject, Signal, QTimer, Slot
+
+
+def take_screenshot(x_pos=None, width=None, y_pos=None, height=None):
+    '''
+    Take a screenshot
+
+    :return: PIL Image
+    '''
+    fullscreen = False
+    if x_pos is None:
+        fullscreen = True
+    elif width is not None:
+        fullscreen = True
+    elif y_pos is not None:
+        fullscreen = True
+    elif height is not None:
+        fullscreen = True
+
+    if fullscreen:
+        return ImageGrab.grab()
+    else:
+        return ImageGrab.grab(bbox=(
+            x_pos,                  # x1
+            y_pos,                  # y1
+            x_pos + width - 1,      # x2
+            y_pos + height - 1,     # y2
+        ))
+
+
 
 class ScreenshotThread(QThread):
     '''Thread to take screenshots'''
@@ -85,35 +115,21 @@ class ScreenshotThread(QThread):
 
             # Capture screenshot
             with self.__settings_lock:
-                fullscreen = False
-                if self.__x_pos is None:
-                    fullscreen = True
-                elif self.__width is not None:
-                    fullscreen = True
-                elif self.__y_pos is not None:
-                    fullscreen = True
-                elif self.__height is not None:
-                    fullscreen = True
+                x_pos = self.__x_pos
+                width = self.__width
+                y_pos = self.__y_pos
+                height = self.__height
 
-                # Grab a section
-                if fullscreen:
-                    next_screen = ImageGrab.grab()
-                else:
-                    next_screen = ImageGrab.grab(bbox=(
-                        self.__x_pos,
-                        self.__y_pos,
-                        self.__x_pos + self.__width - 1,
-                        self.__y_pos + self.__height - 1,
-                    ))
-                    
+            next_screen = take_screenshot(x_pos, width, y_pos, height)
+
             # Update output
             with self.__output_lock:
                 self.__sec_taken = time.time() - self.__started
-                self.__cur_screen = next_screen
+                self.__cur_screen = ThreadSafeImage(next_screen)
+            self.new_screenshot.emit()
 
             # Queue Output
-            self.output_queue.put((self.__cur_screen.size, next_screen.tobytes('raw', 'RGB')))
-            self.new_screenshot.emit()
+            self.output_queue.put(self.__cur_screen)
 
             # Wait at least the given number of seconds
             wait_for = None
