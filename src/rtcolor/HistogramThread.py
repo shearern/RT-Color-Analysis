@@ -62,9 +62,6 @@ class Histogram(object):
 
     background_color = (51,51,51)       # Background color
     marker_color     = (102,102,102)    # Line color of fStop Markers
-    red = (255,60,60)                   # Color for the red lines
-    green = (51,204,51)                 # Color for the green lines
-    blue = (0,102,255)                  # Color for the blue lines
 
     y_scale = 10
 
@@ -131,9 +128,9 @@ class Histogram(object):
         master = Image.new("RGBA", (width, height), self.background_color)
 
         layers = (
-            (self.red, self.red, 0, 255),
-            (self.green, self.green, 256, 511),
-            (self.blue, self.blue, 512, 767),
+            ((255, 60, 60,256), (255, 60, 60,256),   0, 255),   # Red
+            ((051,204, 51,256), ( 51,204, 51,256), 256, 511),   # Green
+            ((  0,102,255,256), (  0,102,255,256), 512, 767),   # Blue
         )
 
         for line_color, fill_color, data_start, data_end in layers:
@@ -142,23 +139,34 @@ class Histogram(object):
             ##before = sum(data)
             data = rebin_data(data, bin_count)
             ##after = sum(data)
-            print "Sum before = %d, sum after = %d, difference = %d (%.02f%%)" % (before, after, after - before, (100 * (after - before)) / before)
-            ##data_max = max(data)
+            ##print "Sum before = %d, sum after = %d, difference = %d (%.02f%%)" % (before, after, after - before, (100 * (after - before)) / before)
+            data_max = max(data)
 
             # Start layer for this color
             layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
-            # Draw line for top of each bin
+            # -- Draw each bin --------------------------------------------------
             draw = ImageDraw.Draw(layer)
-            prev_y = None
             for x, cnt in enumerate(data):
-                x = x * bin_width
+
+                start_x = x * bin_width
+                end_x = (x + 1) * bin_width  - 1
+
                 this_height = (cnt / data_max) * height
                 this_y = height - this_height
-                if prev_y is not None:
-                    draw.line((x-1, prev_y, x, this_y), fill=line_color)
 
-                prev_y = this_y
+                # Outline bin
+                draw.line((start_x, height, start_x, this_y), fill=line_color) # Left border
+                if end_x > start_x:
+                    draw.line((start_x, this_y, end_x, this_y), fill=line_color) # Top
+                    draw.line((end_x, height, end_x, this_y), fill=line_color) # Right border
+
+                # Fill bin
+                start_x -= 1
+                end_x -= 1
+                this_y += 1
+                if start_x < end_x:
+                    draw.rectangle((start_x, this_y, end_x, height), fill=fill_color)
 
             # Add layer to master
             master.paste(layer, (0, 0), layer)
