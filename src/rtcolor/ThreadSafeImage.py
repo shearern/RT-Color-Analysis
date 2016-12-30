@@ -20,4 +20,5 @@ class ThreadSafeImage(object):
     @property
     def pil(self):
         '''Get PIL image back out'''
-        return Image.frombytes('RGB', self.__size, self.__im_data, 'raw')
+        im = Image.frombytes('RGB', self.__size, self.__im_data, 'raw')
+        return im

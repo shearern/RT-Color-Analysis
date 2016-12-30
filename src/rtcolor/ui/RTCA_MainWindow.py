@@ -1,3 +1,5 @@
+import io
+
 from Queue import Queue
 from PIL import Image
 
@@ -7,6 +9,17 @@ from PySide.QtGui import *
 from .RTCA_MainWindow_UI import Ui_RTCA_MainWindow_UI
 from ..ScreenshotThread import ScreenshotThread
 from ..HistogramThread import HistogramThread
+
+def pil2pixmap(im, parent):
+
+    image_data_buf = io.BytesIO()
+    im.save(image_data_buf, 'PNG')
+    image_data_buf.seek(0)
+
+    qtimage = QImage(parent=parent)
+    qtimage.loadFromData(image_data_buf.getvalue())
+    return QPixmap.fromImage(qtimage, parent=parent)
+
 
 class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
 
@@ -49,13 +62,8 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         thumb.thumbnail(size)
 
         # Convert image to QPixmap
-        image_data = thumb.convert("RGBA").tobytes('raw', 'RGBA')
-        thumb_qtimage = QImage(
-            image_data,
-            thumb.size[0], thumb.size[1],
-            QImage.Format_ARGB32,
-            parent=self)
-        thumb_pixmap = QPixmap.fromImage(thumb_qtimage, parent=self)
+        thumb_pixmap = pil2pixmap(thumb, self)
+
         self.last_screenshot_lbl.setPixmap(thumb_pixmap)
 
 
@@ -66,14 +74,7 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         self.histogram_time_lbl.setText('%0.1f sec' % (self.histogram_thread.sec_taken))
 
         # Convert image to QPixmap
-        size = (self.analysis_image_lbl.width(), self.analysis_image_lbl.height())
+        size = (self.analysis_image_lbl.width(), self.analysis_image_lbl.height() - 20)
         image = self.histogram_thread.histogram.draw_histogram(size[0], size[1], bin_width=4).pil
-        image = image.resize(size, Image.ANTIALIAS)
-        image_data = image.convert("RGBA").tobytes('raw', 'RGBA')
-        qtimage = QImage(
-            image_data,
-            image.size[0], image.size[1],
-            QImage.Format_ARGB32,
-            parent=self)
-        pixmap = QPixmap.fromImage(qtimage, parent=self)
+        pixmap = pil2pixmap(image, self)
         self.analysis_image_lbl.setPixmap(pixmap)
