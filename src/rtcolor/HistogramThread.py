@@ -1,18 +1,60 @@
 from threading import RLock
 import time
+from math import floor, ceil
 from PIL import Image, ImageDraw
 
 from PySide.QtCore import QThread, QObject, Signal, QTimer, Slot
+from pygments.lexers import data
 
 from .ThreadSafeImage import ThreadSafeImage
+
+def rebin_data(data, new_bin_count):
+    '''
+    Convert number of bins in the histogram
+
+    :param data: Histogram bins
+    :param new_bin_count: New number of bins to return
+    '''
+    bins = [0, ] * new_bin_count
+
+    b_bin_width = float(len(data)) / new_bin_count
+    def a_bins_overlapping_b(o_bi):
+        '''Return indexes of bins in data overlapped by bin bi in new bins'''
+        o_first = int(floor(o_bi * b_bin_width))
+        o_last = int(ceil((o_bi+1) * b_bin_width))
+        return range(max(0, o_first), min(o_last+1, len(data)))
+
+    for bin_b in range(new_bin_count):
+        for bin_a in a_bins_overlapping_b(bin_b):
+            # Calc percent overlap
+            bin_a_start = bin_a
+            bin_a_end = bin_a + 1
+            bin_b_start = bin_b * b_bin_width
+            bin_b_end = (bin_b + 1) * b_bin_width
+
+            if bin_b_start <= bin_a_start and bin_a_end <= bin_b_end:
+                pct_a = 1
+            elif bin_a_start <= bin_b_start and bin_b_end <= bin_a_end:
+                pct_a = max(0, bin_b_end - bin_b_start)
+            elif bin_a_start <= bin_b_start and bin_a_end <= bin_b_end:
+                pct_a = max(0, bin_a_end - bin_b_start)
+            elif bin_b_start <= bin_a_start and bin_b_end <= bin_a_end:
+                pct_a = max(0, bin_b_end - bin_a_start)
+            else:
+                pct_a = 0 # Don't expect to get here
+
+            # Calc contribution of origional bin to new bin
+            bins[bin_b] += pct_a * data[bin_a]
+
+    return bins
+
+
 
 class Histogram(object):
 
     def __init__(self, data):
         self.data = data
-        self.data_image = None
 
-        self.redraw_histogram()
 
     # Constants
     default_width = 3 * 256
@@ -26,6 +68,8 @@ class Histogram(object):
 
     y_scale = 10
 
+
+
     @property
     def rgb_counts(self):
         '''
@@ -34,7 +78,7 @@ class Histogram(object):
         :return: (color_value 00-FF, R count, G count, B count)
         '''
         if len(self.data) != 3*256:
-            raise Exception("Histogram data has %d items.  Expected %d" % (len(data), 3*256))
+            raise Exception("Histogram data has %d items.  Expected %d" % (len(self.data), 3*256))
 
         for i in range(256):
             yield (i, self.data[i], self.data[i+256], self.data[i+256+256])
@@ -60,7 +104,8 @@ class Histogram(object):
         for bin, r, g, b in self.rgb_counts:
             yield (bin, float(r)/upper_limit, float(g)/upper_limit, float(b)/upper_limit)
 
-    def redraw_histogram(self, width=None, height=None):
+
+    def draw_histogram(self, width=None, height=None, bin_width = 1):
         '''
         Draw histogram image.
 
@@ -77,25 +122,48 @@ class Histogram(object):
         if height is None:
             height = self.default_height
 
-        im = Image.new("RGBA", (width, height), self.background_color)
-        draw = ImageDraw.Draw(im)
+        # Number of bins we can get on this width
+        bin_count = int(floor(width / bin_width))
+        y_scale = 0.20
 
-        # Draw the RGB histogram lines
-        x = -1
-        for bin, r, g, b in self.rgb_pcts:
-            # R
-            x += 1
-            draw.line((x, height, x, height-(self.y_scale*r*height)), fill=self.red)
+        # master image is one we'll return.
+        # Will add each color as a seperate layer on top
+        master = Image.new("RGBA", (width, height), self.background_color)
 
-            # G
-            x += 1
-            draw.line((x, height, x, height-(self.y_scale*g*height)), fill=self.green)
+        layers = (
+            (self.red, self.red, 0, 255),
+            (self.green, self.green, 256, 511),
+            (self.blue, self.blue, 512, 767),
+        )
 
-            # B
-            x += 1
-            draw.line((x, height, x, height-(self.y_scale*b*height)), fill=self.blue)
+        for line_color, fill_color, data_start, data_end in layers:
 
-        self.data_image = ThreadSafeImage(im)
+            data = self.data[data_start:data_end+1]
+            ##before = sum(data)
+            data = rebin_data(data, bin_count)
+            ##after = sum(data)
+            print "Sum before = %d, sum after = %d, difference = %d (%.02f%%)" % (before, after, after - before, (100 * (after - before)) / before)
+            ##data_max = max(data)
+
+            # Start layer for this color
+            layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+            # Draw line for top of each bin
+            draw = ImageDraw.Draw(layer)
+            prev_y = None
+            for x, cnt in enumerate(data):
+                x = x * bin_width
+                this_height = (cnt / data_max) * height
+                this_y = height - this_height
+                if prev_y is not None:
+                    draw.line((x-1, prev_y, x, this_y), fill=line_color)
+
+                prev_y = this_y
+
+            # Add layer to master
+            master.paste(layer, (0, 0), layer)
+
+        return ThreadSafeImage(master)
 
 
 class HistogramThread(QThread):

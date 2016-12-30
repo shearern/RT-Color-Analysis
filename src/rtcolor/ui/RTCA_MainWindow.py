@@ -66,8 +66,8 @@ class RTCA_MainWindow(QMainWindow, Ui_RTCA_MainWindow_UI):
         self.histogram_time_lbl.setText('%0.1f sec' % (self.histogram_thread.sec_taken))
 
         # Convert image to QPixmap
-        image = self.histogram_thread.histogram.data_image.pil
         size = (self.analysis_image_lbl.width(), self.analysis_image_lbl.height())
+        image = self.histogram_thread.histogram.draw_histogram(size[0], size[1], bin_width=4).pil
         image = image.resize(size, Image.ANTIALIAS)
         image_data = image.convert("RGBA").tobytes('raw', 'RGBA')
         qtimage = QImage(
